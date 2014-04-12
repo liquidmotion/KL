@@ -1,8 +1,8 @@
 package com.kreer.datatypes;
 
-public class Url {
+public class ListViewAdapter {
 
 	public String name = "";
-	public String url = "";
+	public String subname = "";
 	
 }

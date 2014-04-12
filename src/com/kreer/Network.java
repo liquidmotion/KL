@@ -1,12 +1,17 @@
 package com.kreer;
 
-import java.io.BufferedReader;
-import java.io.InputStreamReader;
+import java.io.BufferedInputStream;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.net.MalformedURLException;
 
 import jcifs.smb.NtlmPasswordAuthentication;
 import jcifs.smb.SmbException;
 import jcifs.smb.SmbFile;
+import jcifs.smb.SmbFileInputStream;
 import android.app.ProgressDialog;
 import android.os.AsyncTask;
 
@@ -15,7 +20,7 @@ public class Network {
 	private MainActivity ctx;
 	private ProgressDialog pdia;
 	
-	private class NetworkTask extends AsyncTask<Void, Void, String> {
+	private class NetworkTask extends AsyncTask<Void, Void, Boolean> {
 		
 		protected void onPreExecute()
 		{
@@ -24,32 +29,38 @@ public class Network {
 			pdia.setCancelable(false);
 			pdia.setCanceledOnTouchOutside(false);
 			pdia.setIndeterminate(true);
-			pdia.setTitle("Bitte warten");
-			pdia.setMessage("Daten werden geladen");
+			pdia.setTitle("Synchronisation");
+			pdia.setMessage("Daten werden geladen...");
 			
 			pdia.show();
 			
 		}
 		
 		@Override
-		protected String doInBackground(Void... params) {
+		protected Boolean doInBackground(Void... params) {
 			
-			String result = "";
+			Boolean result = false;
 			
-			NtlmPasswordAuthentication auth = new NtlmPasswordAuthentication("", "andi.rauchenbacher", "cNdT9Mpg");
+			File localFilePath = new File(MainActivity.DATAPATH);
+			localFilePath.mkdir();
+			
+			NtlmPasswordAuthentication auth = new NtlmPasswordAuthentication("", "tablet", "jD881G9F");
 			
 	        try {
 	        	
-	        	SmbFile sFile = new SmbFile("smb://SERVER/clients/data.txt", auth);
-
-	        	BufferedReader reader = new BufferedReader(new InputStreamReader(sFile.getInputStream()));
-				
-				StringBuilder sb = new StringBuilder();
-				String line = null;
-			
-				while ((line = reader.readLine()) != null) sb.append(line + "\n");
-			
-				result = sb.toString();
+	        	SmbFile dataFile = new SmbFile("smb://KREERSERVER/TabletSoftware/daten.txt", auth);
+	        	
+	        	downloadFile(dataFile, MainActivity.DATAPATH, "");
+	        	
+	        	SmbFile dataFiles = new SmbFile("smb://KREERSERVER/TabletSoftware/pdf/", auth);
+	        	
+	        	for(SmbFile f : dataFiles.listFiles() ){
+	        		
+	        		downloadFile(f, MainActivity.DATAPATH, "pdf/");
+	        		
+	        	}
+	        	
+	        	result = true;
 	        	
 	        } catch (SmbException e) {
 	            e.printStackTrace();
@@ -63,23 +74,55 @@ public class Network {
 			
 		}
 		
-		protected void onPostExecute(String result) {
+		@Override
+		protected void onPostExecute(Boolean result) {
 			
 			pdia.hide();
 			
-			if(result != null){
+			if(result){
 	    		
-				ctx.getResult(result);
+				MainActivity.data.loadData();
 				
+	    	}else{
+	    		ctx.showMessageDialog("Fehler!", "Datentransfer Fehlgeschlagen");
 	    	}
 	    	
 	    }
+		
+		protected void downloadFile(SmbFile f, String sdCardPath, String subfolder ) throws IOException{
+			
+			String smbFileName = f.getName();
+			BufferedInputStream inputStream = new BufferedInputStream(new SmbFileInputStream(f));
+
+    		File folder = new File(sdCardPath+ "/" + subfolder);
+    		if(!folder.exists()){
+    			folder.mkdir();
+    		}
+    		
+    		File localFilePath = new File(sdCardPath+ "/" + subfolder + smbFileName);
+
+            OutputStream out = new FileOutputStream(localFilePath);
+            byte buf[] = new byte[1024];
+            int len;
+            while ((len = inputStream.read(buf)) > 0) 
+            {
+                out.write(buf, 0, len);
+            }
+            out.flush();
+            out.close();
+            inputStream.close();
+			
+		}
 
 	}
 	
-	public void loadData(MainActivity act){
+	public Network(MainActivity ctx){
 		
-		ctx = act;
+		this.ctx = ctx;
+		
+	}
+	
+	public void loadData(){
 		
 		new NetworkTask().execute();
 		
